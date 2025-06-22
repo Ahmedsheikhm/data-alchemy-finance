@@ -11,6 +11,9 @@ import Projects from "./pages/Projects";
 import Upload from "./pages/Upload";
 import ResultsViewer from "./pages/ResultsViewer";
 import Feedback from "./pages/Feedback";
+import AgentLogs from "./pages/AgentLogs";
+import AgentConfig from "./pages/AgentConfig";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +32,9 @@ const App = () => (
           <Route path="/upload" element={<Upload />} />
           <Route path="/results" element={<ResultsViewer />} />
           <Route path="/feedback" element={<Feedback />} />
+          <Route path="/agents/:agentName/logs" element={<AgentLogs />} />
+          <Route path="/agents/:agentName/config" element={<AgentConfig />} />
+          <Route path="/settings" element={<Settings />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

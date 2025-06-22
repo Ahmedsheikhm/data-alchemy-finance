@@ -29,10 +29,48 @@ const ProcessingQueue = ({ files: propFiles }: ProcessingQueueProps) => {
 
     if (!propFiles) {
       loadFiles();
+      const interval = setInterval(loadFiles, 3000); // Refresh every 3 seconds
+      return () => clearInterval(interval);
     } else {
       setFiles(propFiles);
     }
   }, [propFiles]);
+
+  const handlePauseFile = async (fileId: string) => {
+    try {
+      // Update file status to paused
+      await dataStore.updateFile(fileId, { status: 'queued' });
+      // Reload files
+      const allFiles = await dataStore.getAllFiles();
+      const processingFiles = allFiles.filter(f => 
+        f.status === 'processing' || f.status === 'uploading'
+      );
+      setFiles(processingFiles);
+    } catch (error) {
+      console.error('Failed to pause file:', error);
+    }
+  };
+
+  const handleRetryFile = async (fileId: string) => {
+    try {
+      // Submit retry task to processing agent
+      const response = await fetch(`/api/files/${fileId}/process`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        // Reload files
+        const allFiles = await dataStore.getAllFiles();
+        const processingFiles = allFiles.filter(f => 
+          f.status === 'processing' || f.status === 'uploading'
+        );
+        setFiles(processingFiles);
+      }
+    } catch (error) {
+      console.error('Failed to retry file:', error);
+    }
+  };
   const processingSteps = [
     { name: "File Parsing", agent: "Parser Agent", status: "completed" },
     { name: "Data Cleaning", agent: "Cleaner Agent", status: "active" },
@@ -124,10 +162,20 @@ const ProcessingQueue = ({ files: propFiles }: ProcessingQueueProps) => {
                           {file.progress}% complete
                         </span>
                         <div className="flex space-x-1">
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handlePauseFile(file.id)}
+                            title="Pause processing"
+                          >
                             <Pause className="h-3 w-3" />
                           </Button>
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleRetryFile(file.id)}
+                            title="Retry processing"
+                          >
                             <RotateCcw className="h-3 w-3" />
                           </Button>
                         </div>

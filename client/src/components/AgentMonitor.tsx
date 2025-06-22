@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Activity, Brain, Cpu, Zap, TrendingUp, Shield, Settings, Pause, Play } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -161,12 +162,16 @@ const AgentMonitor = ({ agents: propAgents }: AgentMonitorProps) => {
                 )}
 
                 <div className="flex space-x-2 pt-2">
-                  <Button variant="outline" size="sm" className="flex-1">
-                    View Logs
-                  </Button>
-                  <Button variant="outline" size="sm" className="flex-1">
-                    Configure
-                  </Button>
+                  <Link to={`/agents/${agent.name.toLowerCase().replace(' agent', '').replace(' ', '_')}/logs`} className="flex-1">
+                    <Button variant="outline" size="sm" className="w-full">
+                      View Logs
+                    </Button>
+                  </Link>
+                  <Link to={`/agents/${agent.name.toLowerCase().replace(' agent', '').replace(' ', '_')}/config`} className="flex-1">
+                    <Button variant="outline" size="sm" className="w-full">
+                      Configure
+                    </Button>
+                  </Link>
                 </div>
               </CardContent>
             </Card>

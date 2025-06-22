@@ -82,10 +82,12 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="outline" size="sm" onClick={() => setShowSettings(true)}>
-                <Settings className="h-4 w-4 mr-2" />
-                Settings
-              </Button>
+              <Link to="/settings">
+                <Button variant="outline" size="sm">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Settings
+                </Button>
+              </Link>
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
                   <span className="text-sm font-medium text-primary-foreground">

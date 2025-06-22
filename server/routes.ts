@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertUserSchema, insertProjectSchema, insertFileSchema, insertFeedbackSchema } from "@shared/schema";
+import { agentManager } from "./ai-agents/AgentManager";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
@@ -256,6 +257,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ stats });
     } catch (error) {
       console.error("Get stats error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Agent routes
+  app.get("/api/agents", async (req, res) => {
+    try {
+      const agents = agentManager.getAllAgentsStatus();
+      res.json({ agents });
+    } catch (error) {
+      console.error("Get agents error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/agents/:agentName/status", async (req, res) => {
+    try {
+      const { agentName } = req.params;
+      const status = agentManager.getAgentStatus(agentName);
+      
+      if (!status) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      res.json({ status });
+    } catch (error) {
+      console.error("Get agent status error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/agents/:agentName/logs", async (req, res) => {
+    try {
+      const { agentName } = req.params;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const logs = agentManager.getAgentLogs(agentName, limit);
+      res.json({ logs });
+    } catch (error) {
+      console.error("Get agent logs error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/agents/:agentName/config", async (req, res) => {
+    try {
+      const { agentName } = req.params;
+      const config = agentManager.getAgentConfiguration(agentName);
+      
+      if (!config) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      res.json({ config });
+    } catch (error) {
+      console.error("Get agent config error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/agents/:agentName/config", async (req, res) => {
+    try {
+      const { agentName } = req.params;
+      const config = req.body;
+      
+      await agentManager.updateAgentConfiguration(agentName, config);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Update agent config error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/agents/:agentName/tasks", async (req, res) => {
+    try {
+      const { agentName } = req.params;
+      const { taskType, data } = req.body;
+      
+      const taskId = await agentManager.submitTask(agentName, taskType, data);
+      res.json({ taskId });
+    } catch (error) {
+      console.error("Submit task error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // File processing route
+  app.post("/api/files/:id/process", async (req, res) => {
+    try {
+      const fileId = req.params.id;
+      const file = await storage.getFile(fileId);
+      
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+
+      // Submit parsing task
+      const taskId = await agentManager.submitTask('parser', 'parse_csv', {
+        content: file.originalData,
+        filename: file.name
+      });
+
+      // Update file status
+      await storage.updateFile(fileId, { 
+        status: 'processing',
+        progress: 25 
+      });
+
+      res.json({ taskId, message: "Processing started" });
+    } catch (error) {
+      console.error("Process file error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
