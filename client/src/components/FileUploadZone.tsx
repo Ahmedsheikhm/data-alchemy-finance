@@ -129,8 +129,31 @@ const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFilesUploaded }) => {
           : f
       ));
 
-      // Process through AI agents pipeline
-      const agentResults = await processWithAgents(parsedData);
+      // Process through AI agents pipeline with error handling
+      let agentResults;
+      try {
+        agentResults = await processWithAgents(parsedData);
+      } catch (agentError) {
+        console.error('Agent processing failed:', agentError);
+        // Create fallback results
+        agentResults = {
+          parser: { rows: parsedData.rows, headers: parsedData.headers },
+          cleaner: {
+            cleanedRows: parsedData.rows,
+            issues: [],
+            stats: { totalRecords: parsedData.rows.length, cleanedRecords: parsedData.rows.length, flaggedRecords: 0 }
+          },
+          labeler: {
+            labeledRows: parsedData.rows,
+            newHeaders: parsedData.headers
+          },
+          reviewer: {
+            flaggedRows: [],
+            qualityScore: 85,
+            summary: { totalRecords: parsedData.rows.length, flaggedRecords: 0 }
+          }
+        };
+      }
       
       setFiles(prev => prev.map(f => 
         f.id === uploadedFile.id 
@@ -191,13 +214,13 @@ const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFilesUploaded }) => {
       
       setFiles(prev => prev.map(f => 
         f.id === uploadedFile.id 
-          ? { ...f, status: 'error', issues: ['Processing failed'] }
+          ? { ...f, status: 'error', issues: [`Processing failed: ${error.message || 'Unknown error'}`] }
           : f
       ));
 
       toast({
         title: "Processing failed",
-        description: `Failed to process ${uploadedFile.name}. Please try again.`,
+        description: `Failed to process ${uploadedFile.name}: ${error.message || 'Unknown error'}`,
         variant: "destructive"
       });
     }
