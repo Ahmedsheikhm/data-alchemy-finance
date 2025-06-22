@@ -85,10 +85,10 @@ const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFilesUploaded }) => {
         uploadTime: new Date(),
         processTime: new Date(),
         originalData: parsedData.rows,
-        cleanedData: cleaningResults.map(row => row.map(cell => cell.cleaned)),
-        headers: parsedData.headers,
-        cleaningResults,
-        issues: cleaningResults.flat().filter(r => r.issues.length > 0).map(r => r.issues).flat(),
+        cleanedData: agentResults.cleaner.cleanedRows,
+        headers: agentResults.labeler.newHeaders,
+        cleaningResults: agentResults.cleaner.issues,
+        issues: agentResults.cleaner.issues || [],
         stats: {
           totalRecords,
           cleanedRecords,
@@ -96,9 +96,6 @@ const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFilesUploaded }) => {
           accuracy: Math.round(accuracy * 10) / 10
         }
       };
-
-      // Save to data store
-      dataStore.addFile(processedFile);
 
       // Update local state
       setFiles(prev => prev.map(f => 
@@ -113,8 +110,8 @@ const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFilesUploaded }) => {
           : f
       ));
 
-      // Notify parent component
-      onFilesUploaded(dataStore.getAllFiles());
+      // Notify parent component with the processed file
+      onFilesUploaded([processedFile]);
 
       toast({
         title: "File processed successfully",

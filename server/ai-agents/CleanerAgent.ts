@@ -42,6 +42,135 @@ export class CleanerAgent extends BaseAgent {
     }
   }
 
+  private async cleanDataset(data: { rows: any[]; headers: string[] }): Promise<any> {
+    this.log('info', 'Starting data normalization', { 
+      totalRows: data.rows.length, 
+      headers: data.headers 
+    });
+
+    const cleanedRows = [];
+    const issues = [];
+    
+    for (let i = 0; i < data.rows.length; i++) {
+      const row = data.rows[i];
+      const cleanedRow = [];
+      
+      for (let j = 0; j < data.headers.length; j++) {
+        const header = data.headers[j];
+        const value = row[j];
+        const result = this.cleanFieldValue(header, value);
+        
+        cleanedRow.push(result.cleaned);
+        
+        if (result.issues.length > 0) {
+          issues.push({
+            row: i,
+            column: j,
+            field: header,
+            original: value,
+            cleaned: result.cleaned,
+            issues: result.issues
+          });
+        }
+      }
+      
+      cleanedRows.push(cleanedRow);
+    }
+
+    this.log('info', 'Data cleaning completed', { 
+      cleanedRows: cleanedRows.length,
+      issuesFound: issues.length
+    });
+
+    return {
+      cleanedRows,
+      issues,
+      stats: {
+        totalRecords: data.rows.length,
+        cleanedRecords: cleanedRows.length,
+        flaggedRecords: issues.length
+      }
+    };
+  }
+
+  private cleanFieldValue(fieldName: string, value: any): { cleaned: any; issues: string[] } {
+    const issues: string[] = [];
+    let cleaned = value;
+
+    if (value === null || value === undefined || value === '') {
+      return { cleaned: null, issues: ['empty_value'] };
+    }
+
+    const fieldLower = fieldName.toLowerCase();
+
+    // Gender normalization
+    if (fieldLower.includes('gender') || fieldLower.includes('sex')) {
+      cleaned = this.normalizeGender(value);
+      if (cleaned !== value) {
+        this.log('info', 'Normalized gender value', { original: value, cleaned });
+      }
+    }
+    // Boolean normalization  
+    else if (this.isBooleanField(fieldLower)) {
+      cleaned = this.normalizeBoolean(value);
+      if (cleaned !== value) {
+        this.log('info', 'Normalized boolean value', { original: value, cleaned });
+      }
+    }
+    // Currency normalization
+    else if (this.isCurrencyField(fieldName)) {
+      cleaned = this.standardizeCurrencyValue(value);
+      if (cleaned !== value) {
+        this.log('info', 'Normalized currency value', { original: value, cleaned });
+      }
+    }
+    // Date normalization
+    else if (this.isDateField(fieldName)) {
+      cleaned = this.validateDateValue(value);
+      if (cleaned !== value) {
+        this.log('info', 'Normalized date value', { original: value, cleaned });
+      }
+    }
+    // Text normalization
+    else if (typeof value === 'string') {
+      cleaned = this.normalizeTextValue(value);
+      if (cleaned !== value) {
+        this.log('info', 'Normalized text value', { original: value, cleaned });
+      }
+    }
+
+    return { cleaned, issues };
+  }
+
+  private normalizeGender(value: any): string {
+    if (!value) return null;
+    
+    const str = value.toString().toLowerCase().trim();
+    
+    if (str.match(/^(m|male|man|boy)$/)) return 'M';
+    if (str.match(/^(f|female|woman|girl)$/)) return 'F';
+    if (str.match(/^(o|other|non-binary|nb)$/)) return 'O';
+    
+    return 'U'; // Unknown
+  }
+
+  private normalizeBoolean(value: any): boolean | null {
+    if (value === null || value === undefined) return null;
+    
+    const str = value.toString().toLowerCase().trim();
+    
+    if (str.match(/^(true|yes|y|1|on|active|enabled)$/)) return true;
+    if (str.match(/^(false|no|n|0|off|inactive|disabled)$/)) return false;
+    
+    return null;
+  }
+
+  private isBooleanField(fieldName: string): boolean {
+    return /^(is_|has_|active|enabled|verified|confirmed)/.test(fieldName) ||
+           fieldName.includes('status') ||
+           fieldName.includes('flag');
+  }
+
   private async cleanData(data: { rows: any[]; headers: string[] }): Promise<any> {
     this.log('info', 'Starting comprehensive data cleaning', { 
       totalRows: data.rows.length,

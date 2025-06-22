@@ -38,7 +38,17 @@ export class ParserAgent extends BaseAgent {
     }
   }
 
-  private async parseCSV(data: { content: string; filename: string }): Promise<any> {
+  private async parseFile(data: { content: string; filename: string; fileType: string }): Promise<any> {
+    this.log('info', 'Analyzing file structure', { filename: data.filename, type: data.fileType });
+    
+    if (data.fileType === 'text/csv' || data.filename.endsWith('.csv')) {
+      return this.parseCSVContent(data.content, data.filename);
+    } else {
+      throw new Error(`Unsupported file type: ${data.fileType}`);
+    }
+  }
+
+  private async parseCSVContent(content: string, filename: string): Promise<any> {
     this.log('info', 'Starting CSV parsing', { filename: data.filename });
     
     // Simulate AI-powered CSV parsing
@@ -54,6 +64,7 @@ export class ParserAgent extends BaseAgent {
 
     // Auto-detect delimiter
     const delimiter = this.detectDelimiter(lines[0]);
+    this.log('info', 'Detected CSV delimiter', { delimiter, headerRow: lines[0] });
     this.log('info', `Detected delimiter: ${delimiter}`);
     
     // Parse headers

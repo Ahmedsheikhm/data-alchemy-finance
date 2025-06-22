@@ -35,15 +35,17 @@ const FeedbackSystem: React.FC = () => {
         const samples: PredictionSample[] = [];
     
         completedFiles.slice(0, 3).forEach(file => {
-          // Create mock prediction samples since cleaningResults structure may not exist
-          for (let i = 0; i < 3; i++) {
-            samples.push({
-              id: `${file.id}-${i}`,
-              field: 'amount',
-              original: `$${(Math.random() * 1000).toFixed(2)}`,
-              cleaned: `${(Math.random() * 1000).toFixed(2)}`,
-              confidence: Math.random() * 0.3 + 0.7,
-              fileId: file.id
+          // Only show real predictions from actual processing, no mock data
+          if (file.cleaningResults && file.cleaningResults.length > 0) {
+            file.cleaningResults.slice(0, 3).forEach((issue, index) => {
+              samples.push({
+                id: `${file.id}-${index}`,
+                field: issue.field,
+                original: issue.original,
+                cleaned: issue.cleaned,
+                confidence: 0.8, // Default confidence for real issues
+                fileId: file.id
+              });
             });
           }
         });

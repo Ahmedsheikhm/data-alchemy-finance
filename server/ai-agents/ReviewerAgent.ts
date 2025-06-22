@@ -42,6 +42,164 @@ export class ReviewerAgent extends BaseAgent {
     }
   }
 
+  private async reviewDataset(data: { rows: any[]; headers: string[] }): Promise<any> {
+    this.log('info', 'Starting data quality review', { 
+      totalRows: data.rows.length,
+      headers: data.headers 
+    });
+
+    const reviewResults = [];
+    const flaggedRows = [];
+    const recommendations = [];
+    let qualityScore = 100;
+
+    for (let i = 0; i < data.rows.length; i++) {
+      const row = data.rows[i];
+      const review = this.reviewSingleRow(row, data.headers, i);
+      
+      reviewResults.push(review);
+      
+      if (review.flags.length > 0) {
+        flaggedRows.push({
+          rowIndex: i,
+          flags: review.flags,
+          severity: review.severity,
+          needsManualReview: review.needsManualReview
+        });
+        
+        qualityScore -= review.severity;
+        
+        this.log('warning', 'Row flagged for review', {
+          rowIndex: i,
+          flags: review.flags,
+          severity: review.severity
+        });
+      }
+    }
+
+    // Generate recommendations
+    recommendations.push(...this.generateRecommendations(flaggedRows, data.headers));
+
+    this.log('info', 'Review completed', { 
+      totalRows: data.rows.length,
+      flaggedRows: flaggedRows.length,
+      qualityScore: Math.max(0, qualityScore),
+      recommendations: recommendations.length
+    });
+
+    return {
+      reviewResults,
+      flaggedRows,
+      recommendations,
+      qualityScore: Math.max(0, qualityScore),
+      summary: {
+        totalRecords: data.rows.length,
+        flaggedRecords: flaggedRows.length,
+        needsManualReview: flaggedRows.filter(r => r.needsManualReview).length
+      }
+    };
+  }
+
+  private reviewSingleRow(row: any[], headers: string[], rowIndex: number): any {
+    const flags = [];
+    let severity = 0;
+    let needsManualReview = false;
+
+    for (let i = 0; i < row.length; i++) {
+      const value = row[i];
+      const header = headers[i];
+      
+      // Check for missing critical data
+      if (this.isCriticalField(header) && (value === null || value === undefined || value === '')) {
+        flags.push(`missing_critical_${header}`);
+        severity += 10;
+        needsManualReview = true;
+      }
+      
+      // Check for data type inconsistencies
+      if (this.isNumericField(header) && value !== null && isNaN(Number(value))) {
+        flags.push(`invalid_numeric_${header}`);
+        severity += 5;
+      }
+      
+      // Check for date format issues
+      if (this.isDateField(header) && value && !this.isValidDate(value)) {
+        flags.push(`invalid_date_${header}`);
+        severity += 5;
+      }
+      
+      // Check for outliers
+      if (this.isAmountField(header) && value && this.isOutlierAmount(value)) {
+        flags.push(`outlier_amount_${header}`);
+        severity += 3;
+        needsManualReview = true;
+      }
+      
+      // Check for suspicious patterns
+      if (this.hasSuspiciousPattern(value)) {
+        flags.push(`suspicious_pattern_${header}`);
+        severity += 7;
+        needsManualReview = true;
+      }
+    }
+
+    return {
+      rowIndex,
+      flags,
+      severity,
+      needsManualReview,
+      confidence: Math.max(0, 100 - severity) / 100
+    };
+  }
+
+  private isCriticalField(header: string): boolean {
+    const critical = ['id', 'amount', 'date', 'transaction_id', 'user_id'];
+    return critical.some(field => header.toLowerCase().includes(field));
+  }
+
+  private isAmountField(header: string): boolean {
+    return /amount|price|cost|value|balance/.test(header.toLowerCase());
+  }
+
+  private isValidDate(value: any): boolean {
+    const date = new Date(value);
+    return !isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100;
+  }
+
+  private isOutlierAmount(value: any): boolean {
+    const num = Number(value);
+    return Math.abs(num) > 100000 || (Math.abs(num) > 0 && Math.abs(num) < 0.01);
+  }
+
+  private hasSuspiciousPattern(value: any): boolean {
+    if (typeof value !== 'string') return false;
+    
+    // Check for potential injection patterns
+    return /[<>{}();]|script|select|insert|delete|drop|union/i.test(value);
+  }
+
+  private generateRecommendations(flaggedRows: any[], headers: string[]): string[] {
+    const recommendations = [];
+    
+    if (flaggedRows.length > 0) {
+      recommendations.push(`${flaggedRows.length} rows require attention`);
+    }
+    
+    const criticalFlags = flaggedRows.filter(r => r.needsManualReview);
+    if (criticalFlags.length > 0) {
+      recommendations.push(`${criticalFlags.length} rows need manual review`);
+    }
+    
+    const missingData = flaggedRows.filter(r => 
+      r.flags.some(f => f.includes('missing_critical'))
+    );
+    if (missingData.length > 0) {
+      recommendations.push('Consider data validation rules for required fields');
+    }
+    
+    return recommendations;
+  }
+
   private async reviewData(data: { records: any[]; headers: string[] }): Promise<any> {
     this.log('info', 'Starting comprehensive data review', { 
       records: data.records.length,

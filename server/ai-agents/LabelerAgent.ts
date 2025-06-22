@@ -43,6 +43,131 @@ export class LabelerAgent extends BaseAgent {
     }
   }
 
+  private async labelDataset(data: { rows: any[]; headers: string[] }): Promise<any> {
+    this.log('info', 'Starting ML-based categorization', { 
+      totalRows: data.rows.length,
+      headers: data.headers 
+    });
+
+    const labeledRows = [];
+    const categories = new Set();
+    const patterns = [];
+
+    for (let i = 0; i < data.rows.length; i++) {
+      const row = data.rows[i];
+      const labeledRow = [...row];
+      
+      // Add category labels based on content analysis
+      const labels = this.generateLabelsForRow(row, data.headers);
+      labeledRow.push(...labels.categories);
+      
+      // Track patterns
+      labels.categories.forEach(cat => categories.add(cat));
+      patterns.push({
+        rowIndex: i,
+        confidence: labels.confidence,
+        categories: labels.categories,
+        patterns: labels.patterns
+      });
+      
+      labeledRows.push(labeledRow);
+    }
+
+    this.log('info', 'Labeling completed', { 
+      categoriesFound: categories.size,
+      avgConfidence: patterns.reduce((acc, p) => acc + p.confidence, 0) / patterns.length
+    });
+
+    return {
+      labeledRows,
+      categories: Array.from(categories),
+      patterns,
+      newHeaders: [...data.headers, 'category', 'subcategory', 'confidence']
+    };
+  }
+
+  private generateLabelsForRow(row: any[], headers: string[]): { categories: any[]; confidence: number; patterns: string[] } {
+    const categories = [];
+    const patterns = [];
+    let totalConfidence = 0;
+    
+    // Analyze each field for categorization
+    for (let i = 0; i < row.length; i++) {
+      const value = row[i];
+      const header = headers[i];
+      
+      if (this.isTransactionDescription(header, value)) {
+        const category = this.categorizeTransaction(value);
+        categories.push(category.main, category.sub);
+        patterns.push(`transaction_${category.main}`);
+        totalConfidence += category.confidence;
+        
+        this.log('info', 'Categorized transaction', { 
+          description: value, 
+          category: category.main,
+          subcategory: category.sub,
+          confidence: category.confidence
+        });
+        break;
+      }
+    }
+    
+    // Default categorization if no specific patterns found
+    if (categories.length === 0) {
+      categories.push('GENERAL', 'UNCATEGORIZED');
+      totalConfidence = 0.3;
+    }
+    
+    return {
+      categories,
+      confidence: totalConfidence / Math.max(1, categories.length / 2),
+      patterns
+    };
+  }
+
+  private isTransactionDescription(header: string, value: any): boolean {
+    const headerLower = header.toLowerCase();
+    return headerLower.includes('description') || 
+           headerLower.includes('memo') || 
+           headerLower.includes('note') ||
+           headerLower.includes('merchant');
+  }
+
+  private categorizeTransaction(description: string): { main: string; sub: string; confidence: number } {
+    if (!description) return { main: 'GENERAL', sub: 'UNCATEGORIZED', confidence: 0.1 };
+    
+    const desc = description.toLowerCase();
+    
+    // Food & Dining
+    if (desc.match(/restaurant|food|cafe|coffee|pizza|burger|diner|grocery|supermarket/)) {
+      const sub = desc.match(/grocery|supermarket/) ? 'GROCERIES' : 'DINING';
+      return { main: 'FOOD', sub, confidence: 0.9 };
+    }
+    
+    // Transportation
+    if (desc.match(/gas|fuel|uber|taxi|parking|metro|bus|train|airline/)) {
+      const sub = desc.match(/gas|fuel/) ? 'FUEL' : 'TRANSPORT';
+      return { main: 'TRANSPORTATION', sub, confidence: 0.85 };
+    }
+    
+    // Shopping
+    if (desc.match(/amazon|store|shop|retail|mall|purchase|buy/)) {
+      return { main: 'SHOPPING', sub: 'RETAIL', confidence: 0.8 };
+    }
+    
+    // Bills & Utilities
+    if (desc.match(/electric|water|internet|phone|utility|bill|payment/)) {
+      return { main: 'BILLS', sub: 'UTILITIES', confidence: 0.9 };
+    }
+    
+    // Income
+    if (desc.match(/salary|payroll|deposit|income|wage/)) {
+      return { main: 'INCOME', sub: 'SALARY', confidence: 0.95 };
+    }
+    
+    return { main: 'GENERAL', sub: 'OTHER', confidence: 0.4 };
+  }
+
   private async labelTransactions(data: { transactions: any[] }): Promise<any> {
     this.log('info', 'Starting transaction labeling', { count: data.transactions.length });
     
