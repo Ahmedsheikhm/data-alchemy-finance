@@ -51,18 +51,72 @@ const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFilesUploaded }) => {
           : f
       ));
 
-      // Parse file content
+      // Parse file content with proper CSV handling
       const reader = new FileReader();
       const parsedData = await new Promise((resolve, reject) => {
         reader.onload = (e) => {
-          const content = e.target?.result as string;
-          if (uploadedFile.file.name.endsWith('.csv')) {
-            const lines = content.split('\n').filter(line => line.trim());
-            const headers = lines[0].split(',').map(h => h.trim());
-            const rows = lines.slice(1).map(line => line.split(',').map(cell => cell.trim()));
-            resolve({ headers, rows, metadata: { fileType: 'csv' } });
-          } else {
-            reject(new Error('Only CSV files supported'));
+          try {
+            const content = e.target?.result as string;
+            if (!content || content.trim().length === 0) {
+              reject(new Error('File is empty'));
+              return;
+            }
+
+            if (uploadedFile.file.name.endsWith('.csv')) {
+              const lines = content.split('\n').filter(line => line.trim());
+              if (lines.length < 2) {
+                reject(new Error('CSV must have header and at least one data row'));
+                return;
+              }
+
+              // Better CSV parsing to handle quoted fields and commas
+              const parseCSVLine = (line: string): string[] => {
+                const result: string[] = [];
+                let current = '';
+                let inQuotes = false;
+                
+                for (let i = 0; i < line.length; i++) {
+                  const char = line[i];
+                  
+                  if (char === '"') {
+                    inQuotes = !inQuotes;
+                  } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                  } else {
+                    current += char;
+                  }
+                }
+                result.push(current.trim());
+                return result;
+              };
+
+              const headers = parseCSVLine(lines[0]);
+              const rows = lines.slice(1).map(line => parseCSVLine(line));
+              
+              // Filter out incomplete rows
+              const validRows = rows.filter(row => row.length >= headers.length * 0.8);
+              
+              if (validRows.length === 0) {
+                reject(new Error('No valid data rows found'));
+                return;
+              }
+
+              console.log(`Parsed ${validRows.length} rows with ${headers.length} columns`);
+              resolve({ 
+                headers, 
+                rows: validRows, 
+                metadata: { 
+                  fileType: 'csv', 
+                  totalRows: validRows.length,
+                  totalColumns: headers.length 
+                } 
+              });
+            } else {
+              reject(new Error('Only CSV files are currently supported'));
+            }
+          } catch (error) {
+            reject(new Error(`Failed to parse CSV: ${error.message}`));
           }
         };
         reader.onerror = () => reject(new Error('Failed to read file'));
