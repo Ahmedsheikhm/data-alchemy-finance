@@ -1,162 +1,215 @@
-export interface ProcessedFile {
-  id: string;
-  name: string;
-  type: string;
-  status: 'uploading' | 'processing' | 'completed' | 'error';
-  progress: number;
+import { apiClient, type User, type ProcessedFile as APIProcessedFile, type FeedbackEntry as APIFeedbackEntry } from './api';
+
+export interface ProcessedFile extends Omit<APIProcessedFile, 'uploadTime' | 'processTime'> {
   uploadTime: Date;
   processTime?: Date;
-  originalData?: any[][];
-  cleanedData?: any[][];
-  headers?: string[];
-  cleaningResults?: any[][];
-  issues?: string[];
-  stats?: {
-    totalRecords: number;
-    cleanedRecords: number;
-    flaggedRecords: number;
-    accuracy: number;
-  };
 }
 
-export interface UserSession {
-  id: string;
-  email: string;
-  name: string;
+export interface UserSession extends Omit<User, 'createdAt' | 'lastActivity'> {
   loginTime: Date;
   lastActivity: Date;
 }
 
-export interface FeedbackEntry {
-  id: string;
-  userId: string;
-  fileId: string;
-  fieldName: string;
-  originalValue: string;
-  cleanedValue: string;
-  userCorrection?: string;
-  rating: 'correct' | 'incorrect' | 'partial';
+export interface FeedbackEntry extends Omit<APIFeedbackEntry, 'timestamp' | 'confidence'> {
   confidence: number;
   timestamp: Date;
-  notes?: string;
 }
 
 class DataStore {
-  private files: Map<string, ProcessedFile> = new Map();
-  private sessions: Map<string, UserSession> = new Map();
-  private feedback: Map<string, FeedbackEntry> = new Map();
   private currentSession: UserSession | null = null;
 
-  // File Management
-  addFile(file: ProcessedFile): void {
-    this.files.set(file.id, file);
-    this.saveToStorage();
-  }
-
-  updateFile(id: string, updates: Partial<ProcessedFile>): void {
-    const file = this.files.get(id);
-    if (file) {
-      Object.assign(file, updates);
-      this.saveToStorage();
-    }
-  }
-
-  getFile(id: string): ProcessedFile | undefined {
-    return this.files.get(id);
-  }
-
-  getAllFiles(): ProcessedFile[] {
-    return Array.from(this.files.values()).sort((a, b) => 
-      b.uploadTime.getTime() - a.uploadTime.getTime()
-    );
-  }
-
-  deleteFile(id: string): boolean {
-    const deleted = this.files.delete(id);
-    if (deleted) {
-      this.saveToStorage();
-    }
-    return deleted;
-  }
-
   // Session Management
-  createSession(email: string, name: string): UserSession {
-    const session: UserSession = {
-      id: this.generateId(),
-      email,
-      name,
-      loginTime: new Date(),
-      lastActivity: new Date()
-    };
-    
-    this.sessions.set(session.id, session);
-    this.currentSession = session;
-    this.saveToStorage();
-    return session;
+  async createSession(email: string, name: string): Promise<UserSession> {
+    try {
+      const user = await apiClient.login(email, name);
+      const session: UserSession = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        loginTime: new Date(),
+        lastActivity: new Date()
+      };
+      
+      this.currentSession = session;
+      this.saveCurrentSessionToStorage();
+      return session;
+    } catch (error) {
+      console.error('Failed to create session:', error);
+      throw error;
+    }
   }
 
   getCurrentSession(): UserSession | null {
+    if (!this.currentSession) {
+      this.loadCurrentSessionFromStorage();
+    }
     return this.currentSession;
+  }
+
+  // File Management - now using API
+  async addFile(file: Omit<ProcessedFile, 'userId' | 'uploadTime' | 'processTime'>): Promise<ProcessedFile> {
+    const session = this.getCurrentSession();
+    if (!session) {
+      throw new Error('No active session');
+    }
+
+    const apiFile = await apiClient.createFile({
+      ...file,
+      userId: session.id,
+      uploadTime: new Date().toISOString(),
+    });
+
+    return {
+      ...apiFile,
+      uploadTime: new Date(apiFile.uploadTime),
+      processTime: apiFile.processTime ? new Date(apiFile.processTime) : undefined,
+    };
+  }
+
+  async updateFile(id: string, updates: Partial<ProcessedFile>): Promise<ProcessedFile | undefined> {
+    try {
+      const apiUpdates = {
+        ...updates,
+        uploadTime: updates.uploadTime?.toISOString(),
+        processTime: updates.processTime?.toISOString(),
+      };
+      
+      const apiFile = await apiClient.updateFile(id, apiUpdates);
+      return {
+        ...apiFile,
+        uploadTime: new Date(apiFile.uploadTime),
+        processTime: apiFile.processTime ? new Date(apiFile.processTime) : undefined,
+      };
+    } catch (error) {
+      console.error('Failed to update file:', error);
+      return undefined;
+    }
+  }
+
+  async getFile(id: string): Promise<ProcessedFile | undefined> {
+    try {
+      const apiFile = await apiClient.getFile(id);
+      return {
+        ...apiFile,
+        uploadTime: new Date(apiFile.uploadTime),
+        processTime: apiFile.processTime ? new Date(apiFile.processTime) : undefined,
+      };
+    } catch (error) {
+      console.error('Failed to get file:', error);
+      return undefined;
+    }
+  }
+
+  async getAllFiles(): Promise<ProcessedFile[]> {
+    const session = this.getCurrentSession();
+    if (!session) {
+      return [];
+    }
+
+    try {
+      const apiFiles = await apiClient.getFiles(session.id);
+      return apiFiles.map(file => ({
+        ...file,
+        uploadTime: new Date(file.uploadTime),
+        processTime: file.processTime ? new Date(file.processTime) : undefined,
+      }));
+    } catch (error) {
+      console.error('Failed to get files:', error);
+      return [];
+    }
+  }
+
+  async deleteFile(id: string): Promise<boolean> {
+    try {
+      await apiClient.deleteFile(id);
+      return true;
+    } catch (error) {
+      console.error('Failed to delete file:', error);
+      return false;
+    }
   }
 
   updateLastActivity(): void {
     if (this.currentSession) {
       this.currentSession.lastActivity = new Date();
-      this.saveToStorage();
+      this.saveCurrentSessionToStorage();
     }
   }
 
   logout(): void {
     this.currentSession = null;
-    this.saveToStorage();
+    this.saveCurrentSessionToStorage();
   }
 
-  getSessionHistory(): UserSession[] {
-    return Array.from(this.sessions.values()).sort((a, b) => 
-      b.loginTime.getTime() - a.loginTime.getTime()
-    );
-  }
-
-  // Feedback Management
-  addFeedback(feedback: Omit<FeedbackEntry, 'id' | 'timestamp'>): FeedbackEntry {
-    const entry: FeedbackEntry = {
-      ...feedback,
-      id: this.generateId(),
-      timestamp: new Date()
-    };
-    
-    this.feedback.set(entry.id, entry);
-    this.saveToStorage();
-    return entry;
-  }
-
-  getFeedback(fileId?: string): FeedbackEntry[] {
-    const allFeedback = Array.from(this.feedback.values());
-    if (fileId) {
-      return allFeedback.filter(f => f.fileId === fileId);
+  // Feedback Management - now using API
+  async addFeedback(feedback: Omit<FeedbackEntry, 'id' | 'timestamp' | 'userId'>): Promise<FeedbackEntry> {
+    const session = this.getCurrentSession();
+    if (!session) {
+      throw new Error('No active session');
     }
-    return allFeedback.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+    try {
+      const apiFeedback = await apiClient.createFeedback({
+        ...feedback,
+        id: this.generateId(),
+        userId: session.id,
+        confidence: feedback.confidence.toString(),
+      });
+
+      return {
+        ...apiFeedback,
+        confidence: parseFloat(apiFeedback.confidence),
+        timestamp: new Date(apiFeedback.timestamp),
+      };
+    } catch (error) {
+      console.error('Failed to add feedback:', error);
+      throw error;
+    }
   }
 
-  // Statistics
-  getStats() {
-    const files = this.getAllFiles();
-    const completedFiles = files.filter(f => f.status === 'completed');
-    
-    const totalRecords = completedFiles.reduce((sum, f) => sum + (f.stats?.totalRecords || 0), 0);
-    const cleanedRecords = completedFiles.reduce((sum, f) => sum + (f.stats?.cleanedRecords || 0), 0);
-    const avgAccuracy = completedFiles.length > 0 
-      ? completedFiles.reduce((sum, f) => sum + (f.stats?.accuracy || 0), 0) / completedFiles.length
-      : 0;
+  async getFeedback(fileId?: string): Promise<FeedbackEntry[]> {
+    if (!fileId) {
+      return [];
+    }
 
-    return {
-      totalFiles: files.length,
-      completedFiles: completedFiles.length,
-      totalRecords,
-      cleanedRecords,
-      avgAccuracy: Math.round(avgAccuracy * 10) / 10,
-      processingFiles: files.filter(f => f.status === 'processing').length
-    };
+    try {
+      const apiFeedback = await apiClient.getFeedback(fileId);
+      return apiFeedback.map(feedback => ({
+        ...feedback,
+        confidence: parseFloat(feedback.confidence),
+        timestamp: new Date(feedback.timestamp),
+      }));
+    } catch (error) {
+      console.error('Failed to get feedback:', error);
+      return [];
+    }
+  }
+
+  // Statistics - now using API
+  async getStats() {
+    const session = this.getCurrentSession();
+    
+    try {
+      const stats = await apiClient.getStats(session?.id);
+      return {
+        totalFiles: stats.totalFiles,
+        completedFiles: stats.totalFiles, // Approximation
+        totalRecords: stats.cleanedRecords,
+        cleanedRecords: stats.cleanedRecords,
+        avgAccuracy: Math.round(stats.avgAccuracy * 10) / 10,
+        processingFiles: 0 // Would need additional API call
+      };
+    } catch (error) {
+      console.error('Failed to get stats:', error);
+      return {
+        totalFiles: 0,
+        completedFiles: 0,
+        totalRecords: 0,
+        cleanedRecords: 0,
+        avgAccuracy: 0,
+        processingFiles: 0
+      };
+    }
   }
 
   // Utility Methods
@@ -164,46 +217,16 @@ class DataStore {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
   }
 
-  private saveToStorage(): void {
+  private saveCurrentSessionToStorage(): void {
     try {
-      localStorage.setItem('dataAlchemy_files', JSON.stringify(Array.from(this.files.entries())));
-      localStorage.setItem('dataAlchemy_sessions', JSON.stringify(Array.from(this.sessions.entries())));
-      localStorage.setItem('dataAlchemy_feedback', JSON.stringify(Array.from(this.feedback.entries())));
       localStorage.setItem('dataAlchemy_currentSession', JSON.stringify(this.currentSession));
     } catch (error) {
-      console.warn('Failed to save to localStorage:', error);
+      console.warn('Failed to save current session to localStorage:', error);
     }
   }
 
-  loadFromStorage(): void {
+  private loadCurrentSessionFromStorage(): void {
     try {
-      const filesData = localStorage.getItem('dataAlchemy_files');
-      if (filesData) {
-        const entries = JSON.parse(filesData);
-        this.files = new Map(entries.map(([id, file]: [string, any]) => [
-          id, 
-          { ...file, uploadTime: new Date(file.uploadTime), processTime: file.processTime ? new Date(file.processTime) : undefined }
-        ]));
-      }
-
-      const sessionsData = localStorage.getItem('dataAlchemy_sessions');
-      if (sessionsData) {
-        const entries = JSON.parse(sessionsData);
-        this.sessions = new Map(entries.map(([id, session]: [string, any]) => [
-          id,
-          { ...session, loginTime: new Date(session.loginTime), lastActivity: new Date(session.lastActivity) }
-        ]));
-      }
-
-      const feedbackData = localStorage.getItem('dataAlchemy_feedback');
-      if (feedbackData) {
-        const entries = JSON.parse(feedbackData);
-        this.feedback = new Map(entries.map(([id, feedback]: [string, any]) => [
-          id,
-          { ...feedback, timestamp: new Date(feedback.timestamp) }
-        ]));
-      }
-
       const currentSessionData = localStorage.getItem('dataAlchemy_currentSession');
       if (currentSessionData) {
         const session = JSON.parse(currentSessionData);
@@ -216,23 +239,18 @@ class DataStore {
         }
       }
     } catch (error) {
-      console.warn('Failed to load from localStorage:', error);
+      console.warn('Failed to load current session from localStorage:', error);
     }
   }
 
   clearAll(): void {
-    this.files.clear();
-    this.sessions.clear();
-    this.feedback.clear();
     this.currentSession = null;
-    localStorage.removeItem('dataAlchemy_files');
-    localStorage.removeItem('dataAlchemy_sessions');
-    localStorage.removeItem('dataAlchemy_feedback');
     localStorage.removeItem('dataAlchemy_currentSession');
+  }
+
+  constructor() {
+    this.loadCurrentSessionFromStorage();
   }
 }
 
 export const dataStore = new DataStore();
-
-// Initialize on load
-dataStore.loadFromStorage();

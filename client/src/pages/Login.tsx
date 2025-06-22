@@ -22,29 +22,16 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
 
-    // Simulate authentication delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
     try {
-      if (isLogin) {
-        // For demo purposes, accept any email/password combination
-        const displayName = name || email.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase());
-        dataStore.createSession(email, displayName);
-        
-        toast({
-          title: "Login successful",
-          description: `Welcome back to Data Alchemy Finance!`,
-        });
-      } else {
-        // Create new account
-        const displayName = name || email.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase());
-        dataStore.createSession(email, displayName);
-        
-        toast({
-          title: "Account created",
-          description: `Welcome to Data Alchemy Finance, ${displayName}!`,
-        });
-      }
+      const displayName = name || email.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase());
+      await dataStore.createSession(email, displayName);
+      
+      toast({
+        title: isLogin ? "Login successful" : "Account created",
+        description: isLogin ? 
+          `Welcome back to Data Alchemy Finance!` : 
+          `Welcome to Data Alchemy Finance, ${displayName}!`,
+      });
       
       navigate("/dashboard");
     } catch (error) {

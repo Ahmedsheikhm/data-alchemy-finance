@@ -22,30 +22,38 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Load data from store
-    const storeStats = dataStore.getStats();
-    setStats({
-      totalFiles: storeStats.totalFiles,
-      cleanedRecords: storeStats.cleanedRecords,
-      accuracyRate: storeStats.avgAccuracy,
-      activeAgents: 6
-    });
+    const loadData = async () => {
+      try {
+        // Load data from store
+        const storeStats = await dataStore.getStats();
+        setStats({
+          totalFiles: storeStats.totalFiles,
+          cleanedRecords: storeStats.cleanedRecords,
+          accuracyRate: storeStats.avgAccuracy,
+          activeAgents: 6
+        });
 
-    // Load recent files
-    const files = dataStore.getAllFiles().slice(0, 3);
-    setRecentFiles(files.map(file => ({
-      id: file.id,
-      name: file.name,
-      status: file.status,
-      progress: file.progress,
-      type: file.type
-    })));
+        // Load recent files
+        const files = await dataStore.getAllFiles();
+        setRecentFiles(files.slice(0, 3).map(file => ({
+          id: file.id,
+          name: file.name,
+          status: file.status,
+          progress: file.progress,
+          type: file.type
+        })));
 
-    // Load agent statuses
-    setAgents(aiAgentSystem.getAgentStatuses().slice(0, 3));
+        // Load agent statuses
+        setAgents(aiAgentSystem.getAgentStatuses().slice(0, 3));
 
-    // Update activity
-    dataStore.updateLastActivity();
+        // Update activity
+        dataStore.updateLastActivity();
+      } catch (error) {
+        console.error('Failed to load dashboard data:', error);
+      }
+    };
+
+    loadData();
   }, []);
 
   const handleLogout = () => {
