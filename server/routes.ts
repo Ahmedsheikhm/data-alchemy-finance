@@ -246,6 +246,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/feedback", async (req, res) => {
     try {
       const feedbackData = insertFeedbackSchema.parse(req.body);
+      
+      // Validate that the file exists before creating feedback
+      const fileExists = await storage.getFile(feedbackData.fileId);
+      if (!fileExists) {
+        return res.status(400).json({ error: "Invalid file ID - file does not exist" });
+      }
+      
       const feedback = await storage.createFeedback(feedbackData);
       res.json({ feedback });
     } catch (error) {
