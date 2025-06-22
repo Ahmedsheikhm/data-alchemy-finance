@@ -155,15 +155,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/files", async (req, res) => {
     try {
+      console.log('Received file creation request:', {
+        bodySize: JSON.stringify(req.body).length,
+        hasData: !!req.body.originalData,
+        projectId: req.body.projectId
+      });
+      
       const fileData = insertFileSchema.parse(req.body);
       const file = await storage.createFile(fileData);
+      
+      console.log('File created successfully:', file.id);
       res.json({ file });
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.error("Validation error:", error.errors);
         return res.status(400).json({ error: "Invalid file data", details: error.errors });
       }
       console.error("Create file error:", error);
-      res.status(500).json({ error: "Internal server error" });
+      res.status(500).json({ error: "Internal server error", details: error.message });
     }
   });
 

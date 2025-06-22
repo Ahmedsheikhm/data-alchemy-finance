@@ -69,14 +69,38 @@ const ProjectDashboard = () => {
   };
 
   const handleFilesUploaded = async (newFiles: ProcessedFile[]) => {
-    // Add project ID to uploaded files
-    const updatedFiles = newFiles.map(file => ({
-      ...file,
-      projectId: projectId!
-    }));
-    
-    setFiles(prev => [...prev, ...updatedFiles]);
-    await loadProjectData(); // Refresh data
+    try {
+      // Add project ID to uploaded files and save them
+      const updatedFiles = newFiles.map(file => ({
+        ...file,
+        projectId: projectId!,
+        userId: currentSession?.id || 1
+      }));
+      
+      // Save each file to the database with project association
+      for (const file of updatedFiles) {
+        try {
+          await dataStore.saveFile(file);
+        } catch (error) {
+          console.error('Failed to save file:', error);
+        }
+      }
+      
+      setFiles(prev => [...prev, ...updatedFiles]);
+      await loadProjectData(); // Refresh data
+      
+      toast({
+        title: "Files uploaded successfully",
+        description: `${updatedFiles.length} file(s) have been added to the project.`,
+      });
+    } catch (error) {
+      console.error('Failed to process uploaded files:', error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to process uploaded files. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const agents = [
