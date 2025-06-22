@@ -10,9 +10,20 @@ export const users = pgTable("users", {
   lastActivity: timestamp("last_activity").defaultNow().notNull(),
 });
 
+export const projects = pgTable("projects", {
+  id: text("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  settings: jsonb("settings"),
+});
+
 export const files = pgTable("files", {
   id: text("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
+  projectId: text("project_id").references(() => projects.id),
   name: text("name").notNull(),
   type: text("type").notNull(),
   status: text("status").notNull(), // 'uploading' | 'processing' | 'completed' | 'error'
@@ -25,6 +36,7 @@ export const files = pgTable("files", {
   cleaningResults: jsonb("cleaning_results"),
   issues: jsonb("issues"),
   stats: jsonb("stats"),
+  commonFields: jsonb("common_fields"), // For merging similar files
 });
 
 export const feedback = pgTable("feedback", {
@@ -46,6 +58,11 @@ export const insertUserSchema = createInsertSchema(users).pick({
   name: true,
 });
 
+export const insertProjectSchema = createInsertSchema(projects).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertFileSchema = createInsertSchema(files).omit({
   uploadTime: true,
   processTime: true,
@@ -57,6 +74,8 @@ export const insertFeedbackSchema = createInsertSchema(feedback).omit({
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+export type Project = typeof projects.$inferSelect;
+export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type File = typeof files.$inferSelect;
 export type InsertFile = z.infer<typeof insertFileSchema>;
 export type Feedback = typeof feedback.$inferSelect;

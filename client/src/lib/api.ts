@@ -7,9 +7,20 @@ export interface User {
   lastActivity: string;
 }
 
+export interface Project {
+  id: string;
+  userId: number;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+  settings?: any;
+}
+
 export interface ProcessedFile {
   id: string;
   userId: number;
+  projectId?: string;
   name: string;
   type: string;
   status: 'uploading' | 'processing' | 'completed' | 'error';
@@ -27,6 +38,7 @@ export interface ProcessedFile {
     flaggedRecords: number;
     accuracy: number;
   };
+  commonFields?: any;
 }
 
 export interface FeedbackEntry {
@@ -168,8 +180,89 @@ class APIClient {
     return data.feedback;
   }
 
-  async getStats(userId?: number): Promise<{ totalFiles: number; cleanedRecords: number; avgAccuracy: number }> {
-    const url = userId ? `/api/stats?userId=${userId}` : '/api/stats';
+  async getProjects(userId: number): Promise<Project[]> {
+    const response = await fetch(`/api/projects?userId=${userId}`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to get projects');
+    }
+
+    const data = await response.json();
+    return data.projects;
+  }
+
+  async createProject(projectData: Omit<Project, 'createdAt' | 'updatedAt'>): Promise<Project> {
+    const response = await fetch('/api/projects', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(projectData),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to create project');
+    }
+
+    const data = await response.json();
+    return data.project;
+  }
+
+  async updateProject(id: string, updates: Partial<Project>): Promise<Project> {
+    const response = await fetch(`/api/projects/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update project');
+    }
+
+    const data = await response.json();
+    return data.project;
+  }
+
+  async deleteProject(id: string): Promise<void> {
+    const response = await fetch(`/api/projects/${id}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to delete project');
+    }
+  }
+
+  async getProject(id: string): Promise<Project> {
+    const response = await fetch(`/api/projects/${id}`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to get project');
+    }
+
+    const data = await response.json();
+    return data.project;
+  }
+
+  async getProjectFiles(projectId: string): Promise<ProcessedFile[]> {
+    const response = await fetch(`/api/projects/${projectId}/files`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to get project files');
+    }
+
+    const data = await response.json();
+    return data.files;
+  }
+
+  async getStats(userId?: number, projectId?: string): Promise<{ totalFiles: number; cleanedRecords: number; avgAccuracy: number }> {
+    const params = new URLSearchParams();
+    if (userId) params.append('userId', userId.toString());
+    if (projectId) params.append('projectId', projectId);
+    
+    const url = `/api/stats${params.toString() ? '?' + params.toString() : ''}`;
     const response = await fetch(url);
     
     if (!response.ok) {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Upload, Database, Brain, BarChart3, Settings, Users, FileText, TrendingUp, LogOut } from "lucide-react";
+import { Upload, Database, Brain, BarChart3, Settings, Users, FileText, TrendingUp, LogOut, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -109,6 +109,13 @@ const Dashboard = () => {
             >
               <BarChart3 className="h-4 w-4" />
               <span>Dashboard</span>
+            </Link>
+            <Link
+              to="/projects"
+              className="flex items-center space-x-2 py-4 px-2 border-b-2 border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300 text-sm font-medium"
+            >
+              <FolderOpen className="h-4 w-4" />
+              <span>Projects</span>
             </Link>
             <Link
               to="/upload"

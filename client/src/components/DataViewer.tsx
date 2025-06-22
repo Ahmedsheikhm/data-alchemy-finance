@@ -29,11 +29,20 @@ const DataViewer: React.FC = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const allFiles = dataStore.getAllFiles().filter(f => f.status === 'completed');
-    setFiles(allFiles);
-    if (allFiles.length > 0 && !selectedFile) {
-      setSelectedFile(allFiles[0]);
-    }
+    const loadFiles = async () => {
+      try {
+        const allFiles = await dataStore.getAllFiles();
+        const completedFiles = allFiles.filter(f => f.status === 'completed');
+        setFiles(completedFiles);
+        if (completedFiles.length > 0 && !selectedFile) {
+          setSelectedFile(completedFiles[0]);
+        }
+      } catch (error) {
+        console.error('Failed to load files:', error);
+      }
+    };
+    
+    loadFiles();
   }, []);
 
   useEffect(() => {

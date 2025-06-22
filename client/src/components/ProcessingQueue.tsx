@@ -1,15 +1,38 @@
 
+import { useState, useEffect } from "react";
 import { Clock, CheckCircle, AlertCircle, Play, Pause, RotateCcw } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { dataStore, type ProcessedFile } from "@/lib/dataStore";
 
 interface ProcessingQueueProps {
-  files: any[];
+  files?: any[];
 }
 
-const ProcessingQueue = ({ files }: ProcessingQueueProps) => {
+const ProcessingQueue = ({ files: propFiles }: ProcessingQueueProps) => {
+  const [files, setFiles] = useState<ProcessedFile[]>([]);
+
+  useEffect(() => {
+    const loadFiles = async () => {
+      try {
+        const allFiles = await dataStore.getAllFiles();
+        const processingFiles = allFiles.filter(f => 
+          f.status === 'processing' || f.status === 'uploading'
+        );
+        setFiles(processingFiles);
+      } catch (error) {
+        console.error('Failed to load processing files:', error);
+      }
+    };
+
+    if (!propFiles) {
+      loadFiles();
+    } else {
+      setFiles(propFiles);
+    }
+  }, [propFiles]);
   const processingSteps = [
     { name: "File Parsing", agent: "Parser Agent", status: "completed" },
     { name: "Data Cleaning", agent: "Cleaner Agent", status: "active" },
@@ -47,6 +70,75 @@ const ProcessingQueue = ({ files }: ProcessingQueueProps) => {
             Monitor the processing pipeline and manage queued files
           </CardDescription>
         </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            {/* Processing Steps Pipeline */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Processing Pipeline</h4>
+              <div className="space-y-3">
+                {processingSteps.map((step, index) => {
+                  const StatusIcon = getStatusIcon(step.status);
+                  return (
+                    <div key={index} className="flex items-center space-x-3">
+                      <div className={`p-2 rounded-full ${getStatusColor(step.status)} bg-opacity-10`}>
+                        <StatusIcon className={`h-4 w-4 ${getStatusColor(step.status)}`} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">{step.name}</span>
+                          <Badge 
+                            variant={step.status === 'completed' ? 'default' : 'secondary'}
+                            className="text-xs"
+                          >
+                            {step.status}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{step.agent}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Current Files in Queue */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Files in Queue ({files.length})</h4>
+              {files.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No files currently processing
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {files.map((file) => (
+                    <div key={file.id} className="border rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">{file.name}</span>
+                        <Badge variant={file.status === 'processing' ? 'default' : 'secondary'}>
+                          {file.status}
+                        </Badge>
+                      </div>
+                      <Progress value={file.progress} className="h-2" />
+                      <div className="flex justify-between items-center mt-2">
+                        <span className="text-xs text-muted-foreground">
+                          {file.progress}% complete
+                        </span>
+                        <div className="flex space-x-1">
+                          <Button variant="ghost" size="sm">
+                            <Pause className="h-3 w-3" />
+                          </Button>
+                          <Button variant="ghost" size="sm">
+                            <RotateCcw className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -1,22 +1,38 @@
 
-import { Activity, Brain, Cpu, Zap, TrendingUp, Shield } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Activity, Brain, Cpu, Zap, TrendingUp, Shield, Settings, Pause, Play } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { aiAgentSystem } from "@/lib/aiAgents";
 
 interface Agent {
   name: string;
   status: string;
   task: string;
   progress: number;
+  performance?: {
+    accuracy: number;
+    speed: string;
+  };
 }
 
 interface AgentMonitorProps {
-  agents: Agent[];
+  agents?: Agent[];
 }
 
-const AgentMonitor = ({ agents }: AgentMonitorProps) => {
+const AgentMonitor = ({ agents: propAgents }: AgentMonitorProps) => {
+  const [agents, setAgents] = useState<Agent[]>([]);
+
+  useEffect(() => {
+    if (propAgents) {
+      setAgents(propAgents);
+    } else {
+      const agentStatuses = aiAgentSystem.getAgentStatuses();
+      setAgents(agentStatuses);
+    }
+  }, [propAgents]);
   const getAgentIcon = (name: string) => {
     switch (name) {
       case "Parser Agent": return Brain;
