@@ -1,0 +1,11 @@
+Transaction_ID,Date,Amount,Description,Merchant,Category,Gender,Status
+TXN001,2024-01-15,$2500.00,Salary Deposit,Acme Corp,Income,Male,active
+TXN002,2024-01-16,-$45.20,Grocery Shopping,SuperMart,Food,female,Active
+TXN003,2024-01-17,-$1200.00,Rent Payment,City Properties,Housing,M,enabled
+TXN004,2024-01-18,-$25.50,Coffee and Breakfast,Joe's Cafe,Food,FEMALE,true
+TXN005,2024-01-19,-$75.00,Gas Station,Shell,Transportation,man,1
+TXN006,2024-01-20,$150000.00,Investment Return,Stock Market,Income,F,yes
+TXN007,2024-01-21,-$89.99,Amazon Purchase,Amazon,Shopping,other,on
+TXN008,2024-01-22,,Missing Transaction Data,,Unknown,male,
+TXN009,2024-01-23,-$500.00,Electric Bill,City Power,Utilities,Woman,active
+TXN010,2024-01-24,-$12.50,Uber Ride,Uber,Transportation,NON-BINARY,enabled
