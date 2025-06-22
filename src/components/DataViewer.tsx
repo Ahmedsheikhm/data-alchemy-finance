@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Search, Filter, Download, Eye, Edit, Trash2, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -282,7 +281,7 @@ const DataViewer: React.FC = () => {
                 <SelectItem value="all">All Confidence</SelectItem>
                 <SelectItem value="high">High (90%+)</SelectItem>
                 <SelectItem value="medium">Medium (70-89%)</SelectItem>
-                <SelectItem value="low">Low (<70%)</SelectItem>
+                <SelectItem value="low">Low (&lt;70%)</SelectItem>
               </SelectContent>
             </Select>
           </div>
