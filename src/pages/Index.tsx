@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Upload, Database, Brain, BarChart3, Settings, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +8,7 @@ import FileUploadZone from "@/components/FileUploadZone";
 import DataViewer from "@/components/DataViewer";
 import AgentMonitor from "@/components/AgentMonitor";
 import ProcessingQueue from "@/components/ProcessingQueue";
+import { Link } from "react-router-dom";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -159,6 +159,16 @@ const Index = () => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <Button asChild variant="outline" size="sm">
+                <Link to="/login">
+                  Login
+                </Link>
+              </Button>
+              <Button asChild size="sm">
+                <Link to="/dashboard">
+                  Dashboard
+                </Link>
+              </Button>
               <Button variant="outline" size="sm">
                 <Settings className="h-4 w-4 mr-2" />
                 Settings
