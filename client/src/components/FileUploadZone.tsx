@@ -51,8 +51,23 @@ const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFilesUploaded }) => {
           : f
       ));
 
-      // Parse the file
-      const parsedData = await FileParser.parseFile(uploadedFile.file);
+      // Parse file content
+      const reader = new FileReader();
+      const parsedData = await new Promise((resolve, reject) => {
+        reader.onload = (e) => {
+          const content = e.target?.result as string;
+          if (uploadedFile.file.name.endsWith('.csv')) {
+            const lines = content.split('\n').filter(line => line.trim());
+            const headers = lines[0].split(',').map(h => h.trim());
+            const rows = lines.slice(1).map(line => line.split(',').map(cell => cell.trim()));
+            resolve({ headers, rows, metadata: { fileType: 'csv' } });
+          } else {
+            reject(new Error('Only CSV files supported'));
+          }
+        };
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsText(uploadedFile.file);
+      });
       
       setFiles(prev => prev.map(f => 
         f.id === uploadedFile.id 
@@ -60,8 +75,8 @@ const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFilesUploaded }) => {
           : f
       ));
 
-      // Process with AI agents
-      const cleaningResults = await aiAgentSystem.processData(parsedData.rows, parsedData.headers);
+      // Process through AI agents pipeline
+      const agentResults = await processWithAgents(parsedData);
       
       setFiles(prev => prev.map(f => 
         f.id === uploadedFile.id 
@@ -69,13 +84,12 @@ const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFilesUploaded }) => {
           : f
       ));
 
-      // Calculate statistics
-      const totalRecords = parsedData.rows.length;
-      const flaggedRecords = cleaningResults.flat().filter(r => r.issues.length > 0).length;
-      const cleanedRecords = totalRecords - flaggedRecords;
-      const accuracy = totalRecords > 0 ? (cleanedRecords / totalRecords) * 100 : 100;
-
       // Create processed file record
+      const totalRecords = parsedData.rows.length;
+      const cleanedRecords = agentResults.cleaner.stats.cleanedRecords;
+      const flaggedRecords = agentResults.reviewer.summary.flaggedRecords;
+      const accuracy = agentResults.reviewer.qualityScore;
+
       const processedFile: ProcessedFile = {
         id: uploadedFile.id,
         name: uploadedFile.name,
