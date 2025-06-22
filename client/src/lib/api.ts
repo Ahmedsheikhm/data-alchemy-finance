@@ -98,20 +98,26 @@ class APIClient {
   }
 
   async createFile(fileData: Omit<ProcessedFile, 'uploadTime' | 'processTime'>): Promise<ProcessedFile> {
-    const response = await fetch('/api/files', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(fileData),
-    });
+    try {
+      const response = await fetch('/api/files', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(fileData),
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to create file');
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create file: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data.file;
+    } catch (error) {
+      console.error('Create file error:', error);
+      throw error;
     }
-
-    const data = await response.json();
-    return data.file;
   }
 
   async updateFile(id: string, updates: Partial<ProcessedFile>): Promise<ProcessedFile> {

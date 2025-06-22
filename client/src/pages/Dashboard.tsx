@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import SettingsPanel from "@/components/SettingsPanel";
+
 import { dataStore } from "@/lib/dataStore";
 import { aiAgentSystem } from "@/lib/aiAgents";
 
@@ -271,13 +271,7 @@ const Dashboard = () => {
         </div>
       </main>
 
-      {/* Settings Panel */}
-      {showSettings && (
-        <SettingsPanel 
-          onClose={() => setShowSettings(false)}
-          onLogout={handleLogout}
-        />
-      )}
+
     </div>
   );
 };
