@@ -1,31 +1,64 @@
-
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Upload, Database, Brain, BarChart3, Settings, Users, FileText, TrendingUp } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Upload, Database, Brain, BarChart3, Settings, Users, FileText, TrendingUp, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import SettingsPanel from "@/components/SettingsPanel";
+import { dataStore } from "@/lib/dataStore";
+import { aiAgentSystem } from "@/lib/aiAgents";
 
 const Dashboard = () => {
-  const stats = {
-    totalFiles: 156,
-    cleanedRecords: 45231,
-    accuracyRate: 97.3,
-    activeAgents: 6
+  const [showSettings, setShowSettings] = useState(false);
+  const [stats, setStats] = useState({
+    totalFiles: 0,
+    cleanedRecords: 0,
+    accuracyRate: 0,
+    activeAgents: 0
+  });
+  const [recentFiles, setRecentFiles] = useState<any[]>([]);
+  const [agents, setAgents] = useState<any[]>([]);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Load data from store
+    const storeStats = dataStore.getStats();
+    setStats({
+      totalFiles: storeStats.totalFiles,
+      cleanedRecords: storeStats.cleanedRecords,
+      accuracyRate: storeStats.avgAccuracy,
+      activeAgents: 6
+    });
+
+    // Load recent files
+    const files = dataStore.getAllFiles().slice(0, 3);
+    setRecentFiles(files.map(file => ({
+      id: file.id,
+      name: file.name,
+      status: file.status,
+      progress: file.progress,
+      type: file.type
+    })));
+
+    // Load agent statuses
+    setAgents(aiAgentSystem.getAgentStatuses().slice(0, 3));
+
+    // Update activity
+    dataStore.updateLastActivity();
+  }, []);
+
+  const handleLogout = () => {
+    dataStore.logout();
+    navigate('/login');
   };
 
-  const recentFiles = [
-    { id: 1, name: "bank_statements_q3.csv", status: "completed", progress: 100, type: "CSV" },
-    { id: 2, name: "loan_applications.xlsx", status: "processing", progress: 67, type: "Excel" },
-    { id: 3, name: "credit_reports.pdf", status: "queued", progress: 0, type: "PDF" }
-  ];
+  const currentSession = dataStore.getCurrentSession();
 
-  const agents = [
-    { name: "Parser Agent", status: "active", task: "Processing CSV headers" },
-    { name: "Cleaner Agent", status: "active", task: "Normalizing addresses" },
-    { name: "Labeler Agent", status: "idle", task: "Ready for next batch" }
-  ];
+  if (!currentSession) {
+    navigate('/login');
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -41,12 +74,17 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => setShowSettings(true)}>
                 <Settings className="h-4 w-4 mr-2" />
                 Settings
               </Button>
-              <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-primary-foreground">JD</span>
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                  <span className="text-sm font-medium text-primary-foreground">
+                    {currentSession.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <span className="text-sm font-medium">{currentSession.name}</span>
               </div>
             </div>
           </div>
@@ -101,7 +139,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats.totalFiles}</div>
-                <p className="text-xs text-muted-foreground">+12% from last month</p>
+                <p className="text-xs text-muted-foreground">Files processed</p>
               </CardContent>
             </Card>
             <Card>
@@ -111,7 +149,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats.cleanedRecords.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">+8.2% from last week</p>
+                <p className="text-xs text-muted-foreground">Records cleaned</p>
               </CardContent>
             </Card>
             <Card>
@@ -121,7 +159,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats.accuracyRate}%</div>
-                <p className="text-xs text-muted-foreground">Target: 95%+</p>
+                <p className="text-xs text-muted-foreground">Average accuracy</p>
               </CardContent>
             </Card>
             <Card>
@@ -131,7 +169,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats.activeAgents}</div>
-                <p className="text-xs text-muted-foreground">All systems operational</p>
+                <p className="text-xs text-muted-foreground">AI agents running</p>
               </CardContent>
             </Card>
           </div>
@@ -145,18 +183,24 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {recentFiles.map((file) => (
-                    <div key={file.id} className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <Badge variant="outline">{file.type}</Badge>
-                        <div>
-                          <p className="text-sm font-medium">{file.name}</p>
-                          <p className="text-xs text-muted-foreground">Status: {file.status}</p>
+                  {recentFiles.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-4">
+                      No files uploaded yet. Start by uploading your first file.
+                    </p>
+                  ) : (
+                    recentFiles.map((file) => (
+                      <div key={file.id} className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <Badge variant="outline">{file.type}</Badge>
+                          <div>
+                            <p className="text-sm font-medium">{file.name}</p>
+                            <p className="text-xs text-muted-foreground">Status: {file.status}</p>
+                          </div>
                         </div>
+                        <Progress value={file.progress} className="w-20" />
                       </div>
-                      <Progress value={file.progress} className="w-20" />
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -215,6 +259,14 @@ const Dashboard = () => {
           </Card>
         </div>
       </main>
+
+      {/* Settings Panel */}
+      {showSettings && (
+        <SettingsPanel 
+          onClose={() => setShowSettings(false)}
+          onLogout={handleLogout}
+        />
+      )}
     </div>
   );
 };

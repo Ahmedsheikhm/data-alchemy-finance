@@ -1,10 +1,17 @@
-
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Brain, Settings, BarChart3, Database, Upload as UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import FileUploadZone from "@/components/FileUploadZone";
+import { dataStore } from "@/lib/dataStore";
 
 const Upload = () => {
+  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
+
+  const handleFilesUploaded = (files: any[]) => {
+    setUploadedFiles(files);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -24,7 +31,9 @@ const Upload = () => {
                 Settings
               </Button>
               <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-primary-foreground">JD</span>
+                <span className="text-sm font-medium text-primary-foreground">
+                  {dataStore.getCurrentSession()?.name.charAt(0).toUpperCase() || 'U'}
+                </span>
               </div>
             </div>
           </div>
@@ -69,7 +78,7 @@ const Upload = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        <FileUploadZone onFilesUploaded={() => {}} />
+        <FileUploadZone onFilesUploaded={handleFilesUploaded} />
       </main>
     </div>
   );

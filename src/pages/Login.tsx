@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Brain, Eye, EyeOff } from "lucide-react";
@@ -7,12 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { dataStore } from "@/lib/dataStore";
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -21,15 +22,40 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
 
-    // Simulate authentication
-    setTimeout(() => {
-      toast({
-        title: isLogin ? "Login successful" : "Account created",
-        description: `Welcome to Data Alchemy Finance!`,
-      });
+    // Simulate authentication delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    try {
+      if (isLogin) {
+        // For demo purposes, accept any email/password combination
+        const displayName = name || email.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase());
+        dataStore.createSession(email, displayName);
+        
+        toast({
+          title: "Login successful",
+          description: `Welcome back to Data Alchemy Finance!`,
+        });
+      } else {
+        // Create new account
+        const displayName = name || email.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase());
+        dataStore.createSession(email, displayName);
+        
+        toast({
+          title: "Account created",
+          description: `Welcome to Data Alchemy Finance, ${displayName}!`,
+        });
+      }
+      
       navigate("/dashboard");
+    } catch (error) {
+      toast({
+        title: "Authentication failed",
+        description: "Please check your credentials and try again.",
+        variant: "destructive"
+      });
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -46,6 +72,19 @@ const Login = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Enter your full name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required={!isLogin}
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input

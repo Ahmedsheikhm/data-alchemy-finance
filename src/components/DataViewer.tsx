@@ -1,93 +1,76 @@
-import React, { useState, useMemo } from 'react';
-import { Search, Filter, Download, Eye, Edit, Trash2, AlertTriangle } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search, Filter, Download, Eye, Edit, Trash2, AlertTriangle, CheckCircle, X } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { dataStore, ProcessedFile } from '@/lib/dataStore';
 
 interface DataRecord {
   id: number;
-  customerName: string;
-  email: string;
-  phone: string;
-  address: string;
-  amount: number;
-  date: string;
+  [key: string]: any;
   status: 'clean' | 'flagged' | 'corrected';
   confidence: number;
   issues?: string[];
 }
 
-const mockData: DataRecord[] = [
-  {
-    id: 1,
-    customerName: "John Smith",
-    email: "john.smith@email.com",
-    phone: "+1-555-123-4567",
-    address: "123 Main Street, New York, NY 10001",
-    amount: 1250.50,
-    date: "2024-01-15",
-    status: "clean",
-    confidence: 98
-  },
-  {
-    id: 2,
-    customerName: "jane doe",
-    email: "JANE.DOE@GMAIL.COM",
-    phone: "(555) 987-6543",
-    address: "456 oak st",
-    amount: 890.25,
-    date: "2024-01-14",
-    status: "corrected",
-    confidence: 85,
-    issues: ["Name formatting", "Address standardization"]
-  },
-  {
-    id: 3,
-    customerName: "Bob Johnson",
-    email: "bob@company",
-    phone: "555.456.7890",
-    address: "789 Pine Avenue, Los Angeles, CA",
-    amount: 2100.00,
-    date: "2024-01-13",
-    status: "flagged",
-    confidence: 65,
-    issues: ["Invalid email format", "Incomplete phone formatting"]
-  },
-  {
-    id: 4,
-    customerName: "Sarah Wilson",
-    email: "sarah.wilson@business.net",
-    phone: "+1-555-234-5678",
-    address: "321 Cedar Lane, Chicago, IL 60601",
-    amount: 1750.75,
-    date: "2024-01-12",
-    status: "clean",
-    confidence: 96
-  },
-  {
-    id: 5,
-    customerName: "mike brown",
-    email: "mikebrown@email.com",
-    phone: "555-345-6789",
-    address: "654 Maple Dr",
-    amount: 567.30,
-    date: "2024-01-11",
-    status: "corrected",
-    confidence: 78,
-    issues: ["Name capitalization", "Address incomplete"]
-  }
-];
-
 const DataViewer: React.FC = () => {
-  const [data, setData] = useState<DataRecord[]>(mockData);
+  const [files, setFiles] = useState<ProcessedFile[]>([]);
+  const [selectedFile, setSelectedFile] = useState<ProcessedFile | null>(null);
+  const [data, setData] = useState<DataRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [confidenceFilter, setConfidenceFilter] = useState<string>('all');
+  const [selectedRecord, setSelectedRecord] = useState<DataRecord | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const allFiles = dataStore.getAllFiles().filter(f => f.status === 'completed');
+    setFiles(allFiles);
+    if (allFiles.length > 0 && !selectedFile) {
+      setSelectedFile(allFiles[0]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedFile && selectedFile.cleanedData && selectedFile.headers && selectedFile.cleaningResults) {
+      const records: DataRecord[] = selectedFile.cleanedData.map((row, index) => {
+        const record: DataRecord = {
+          id: index + 1,
+          status: 'clean',
+          confidence: 100,
+          issues: []
+        };
+
+        // Map data to headers
+        selectedFile.headers!.forEach((header, colIndex) => {
+          record[header] = row[colIndex] || '';
+        });
+
+        // Calculate status and confidence from cleaning results
+        const rowResults = selectedFile.cleaningResults![index];
+        if (rowResults) {
+          const allIssues = rowResults.flatMap(r => r.issues);
+          const avgConfidence = rowResults.reduce((sum, r) => sum + r.confidence, 0) / rowResults.length;
+          
+          record.issues = allIssues;
+          record.confidence = Math.round(avgConfidence);
+          
+          if (allIssues.length > 0) {
+            record.status = avgConfidence > 80 ? 'corrected' : 'flagged';
+          }
+        }
+
+        return record;
+      });
+
+      setData(records);
+    }
+  }, [selectedFile]);
 
   const filteredData = useMemo(() => {
     return data.filter(record => {
@@ -112,32 +95,26 @@ const DataViewer: React.FC = () => {
     const clean = data.filter(r => r.status === 'clean').length;
     const flagged = data.filter(r => r.status === 'flagged').length;
     const corrected = data.filter(r => r.status === 'corrected').length;
-    const avgConfidence = data.reduce((sum, r) => sum + r.confidence, 0) / total;
+    const avgConfidence = total > 0 ? data.reduce((sum, r) => sum + r.confidence, 0) / total : 0;
 
     return { total, clean, flagged, corrected, avgConfidence };
   }, [data]);
 
   const handleExport = () => {
+    if (!selectedFile) return;
+
     const csvContent = [
-      ['ID', 'Customer Name', 'Email', 'Phone', 'Address', 'Amount', 'Date', 'Status', 'Confidence'],
-      ...filteredData.map(record => [
-        record.id,
-        record.customerName,
-        record.email,
-        record.phone,
-        record.address,
-        record.amount,
-        record.date,
-        record.status,
-        record.confidence
-      ])
+      selectedFile.headers,
+      ...filteredData.map(record => 
+        selectedFile.headers!.map(header => record[header])
+      )
     ].map(row => row.join(',')).join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'cleaned_data.csv';
+    a.download = `cleaned_${selectedFile.name}`;
     a.click();
     window.URL.revokeObjectURL(url);
 
@@ -153,6 +130,21 @@ const DataViewer: React.FC = () => {
         ? { ...record, status: 'clean' as const, confidence: Math.min(record.confidence + 5, 100) }
         : record
     ));
+    
+    // Add feedback to data store
+    const record = data.find(r => r.id === id);
+    if (record && selectedFile) {
+      dataStore.addFeedback({
+        userId: dataStore.getCurrentSession()?.id || 'anonymous',
+        fileId: selectedFile.id,
+        fieldName: 'record',
+        originalValue: JSON.stringify(record),
+        cleanedValue: JSON.stringify(record),
+        rating: 'correct',
+        confidence: record.confidence
+      });
+    }
+
     toast({
       title: "Record approved",
       description: "The data correction has been approved.",
@@ -165,6 +157,21 @@ const DataViewer: React.FC = () => {
         ? { ...record, status: 'flagged' as const }
         : record
     ));
+    
+    // Add feedback to data store
+    const record = data.find(r => r.id === id);
+    if (record && selectedFile) {
+      dataStore.addFeedback({
+        userId: dataStore.getCurrentSession()?.id || 'anonymous',
+        fileId: selectedFile.id,
+        fieldName: 'record',
+        originalValue: JSON.stringify(record),
+        cleanedValue: JSON.stringify(record),
+        rating: 'incorrect',
+        confidence: record.confidence
+      });
+    }
+
     toast({
       title: "Record flagged",
       description: "The record has been flagged for manual review.",
@@ -187,193 +194,271 @@ const DataViewer: React.FC = () => {
     } else if (confidence >= 70) {
       return <Badge variant="secondary">Medium ({confidence}%)</Badge>;
     } else {
-      return <Badge variant="destructive">Low ({confidence}%)</Badge>;
+      return <Badge variant="destructive">Low (&lt;{confidence}%)</Badge>;
     }
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Records</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Clean</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.clean}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Corrected</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats.corrected}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Flagged</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.flagged}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Avg Confidence</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.avgConfidence.toFixed(1)}%</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Data Table */}
+  if (files.length === 0) {
+    return (
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Cleaned Data</CardTitle>
-              <CardDescription>Review and approve AI-cleaned financial data</CardDescription>
-            </div>
-            <Button onClick={handleExport}>
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
-            </Button>
-          </div>
+          <CardTitle>No Data Available</CardTitle>
+          <CardDescription>
+            Upload and process files to view cleaned data here.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Filters */}
-          <div className="flex space-x-4 mb-6">
-            <div className="flex-1">
-              <Input
-                placeholder="Search records..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="max-w-sm"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="clean">Clean</SelectItem>
-                <SelectItem value="corrected">Corrected</SelectItem>
-                <SelectItem value="flagged">Flagged</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={confidenceFilter} onValueChange={setConfidenceFilter}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Confidence" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Confidence</SelectItem>
-                <SelectItem value="high">High (90%+)</SelectItem>
-                <SelectItem value="medium">Medium (70-89%)</SelectItem>
-                <SelectItem value="low">Low (&lt;70%)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Table */}
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Address</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Confidence</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredData.map((record) => (
-                  <TableRow key={record.id}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{record.customerName}</div>
-                        {record.issues?.includes('Name formatting') && (
-                          <div className="text-xs text-orange-600 flex items-center mt-1">
-                            <AlertTriangle className="h-3 w-3 mr-1" />
-                            Name formatting
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="text-sm">{record.email}</div>
-                        <div className="text-sm text-gray-500">{record.phone}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="max-w-48">
-                        <div className="text-sm truncate">{record.address}</div>
-                        {record.issues?.includes('Address standardization') && (
-                          <div className="text-xs text-orange-600 flex items-center mt-1">
-                            <AlertTriangle className="h-3 w-3 mr-1" />
-                            Address standardized
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>${record.amount.toFixed(2)}</TableCell>
-                    <TableCell>{record.date}</TableCell>
-                    <TableCell>{getStatusBadge(record.status, record.confidence)}</TableCell>
-                    <TableCell>{getConfidenceBadge(record.confidence)}</TableCell>
-                    <TableCell>
-                      <div className="flex space-x-1">
-                        {record.status === 'corrected' && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleApprove(record.id)}
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleReject(record.id)}
-                            >
-                              Reject
-                            </Button>
-                          </>
-                        )}
-                        {record.status === 'flagged' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleApprove(record.id)}
-                          >
-                            Fix
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <p className="text-muted-foreground">
+            Go to the Upload Files tab to get started with data cleaning.
+          </p>
         </CardContent>
       </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* File Selection */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Select File to View</CardTitle>
+          <CardDescription>Choose a processed file to review its cleaned data</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Select value={selectedFile?.id || ''} onValueChange={(value) => {
+            const file = files.find(f => f.id === value);
+            setSelectedFile(file || null);
+          }}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select a file" />
+            </SelectTrigger>
+            <SelectContent>
+              {files.map((file) => (
+                <SelectItem key={file.id} value={file.id}>
+                  {file.name} - {file.stats?.totalRecords} records
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      {selectedFile && (
+        <>
+          {/* Stats Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Total Records</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.total}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Clean</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">{stats.clean}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Corrected</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">{stats.corrected}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Flagged</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">{stats.flagged}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Avg Confidence</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.avgConfidence.toFixed(1)}%</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Data Table */}
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Cleaned Data: {selectedFile.name}</CardTitle>
+                  <CardDescription>Review and approve AI-cleaned financial data</CardDescription>
+                </div>
+                <Button onClick={handleExport}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Filters */}
+              <div className="flex space-x-4 mb-6">
+                <div className="flex-1">
+                  <Input
+                    placeholder="Search records..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="max-w-sm"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="clean">Clean</SelectItem>
+                    <SelectItem value="corrected">Corrected</SelectItem>
+                    <SelectItem value="flagged">Flagged</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={confidenceFilter} onValueChange={setConfidenceFilter}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Confidence" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Confidence</SelectItem>
+                    <SelectItem value="high">High (90%+)</SelectItem>
+                    <SelectItem value="medium">Medium (70-89%)</SelectItem>
+                    <SelectItem value="low">Low (&lt;70%)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Table */}
+              <div className="border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      {selectedFile.headers?.slice(0, 4).map((header) => (
+                        <TableHead key={header}>{header}</TableHead>
+                      ))}
+                      <TableHead>Status</TableHead>
+                      <TableHead>Confidence</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredData.slice(0, 50).map((record) => (
+                      <TableRow key={record.id}>
+                        <TableCell>{record.id}</TableCell>
+                        {selectedFile.headers?.slice(0, 4).map((header) => (
+                          <TableCell key={header}>
+                            <div className="max-w-32 truncate">
+                              {record[header]}
+                              {record.issues?.some(issue => issue.toLowerCase().includes(header.toLowerCase())) && (
+                                <AlertTriangle className="h-3 w-3 text-orange-500 inline ml-1" />
+                              )}
+                            </div>
+                          </TableCell>
+                        ))}
+                        <TableCell>{getStatusBadge(record.status, record.confidence)}</TableCell>
+                        <TableCell>{getConfidenceBadge(record.confidence)}</TableCell>
+                        <TableCell>
+                          <div className="flex space-x-1">
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setSelectedRecord(record)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-2xl">
+                                <DialogHeader>
+                                  <DialogTitle>Record Details</DialogTitle>
+                                  <DialogDescription>
+                                    View complete record information and cleaning details
+                                  </DialogDescription>
+                                </DialogHeader>
+                                {selectedRecord && (
+                                  <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                      {selectedFile.headers?.map((header) => (
+                                        <div key={header}>
+                                          <label className="text-sm font-medium">{header}</label>
+                                          <p className="text-sm bg-gray-50 p-2 rounded">
+                                            {selectedRecord[header]}
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    {selectedRecord.issues && selectedRecord.issues.length > 0 && (
+                                      <div>
+                                        <label className="text-sm font-medium">Issues Found</label>
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                          {selectedRecord.issues.map((issue, index) => (
+                                            <Badge key={index} variant="outline" className="text-xs">
+                                              {issue}
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </DialogContent>
+                            </Dialog>
+                            {record.status === 'corrected' && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleApprove(record.id)}
+                                >
+                                  <CheckCircle className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleReject(record.id)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                            {record.status === 'flagged' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleApprove(record.id)}
+                              >
+                                Fix
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              
+              {filteredData.length > 50 && (
+                <p className="text-sm text-muted-foreground mt-4">
+                  Showing first 50 of {filteredData.length} records. Use filters to narrow down results.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 };

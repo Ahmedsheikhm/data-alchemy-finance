@@ -1,14 +1,16 @@
-
 import React, { useState, useCallback } from 'react';
-import { Upload, FileText, AlertCircle, CheckCircle, X } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle, X, Play } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { FileParser } from '@/lib/fileParser';
+import { aiAgentSystem } from '@/lib/aiAgents';
+import { dataStore, ProcessedFile } from '@/lib/dataStore';
 
 interface UploadedFile {
-  id: number;
+  id: string;
   name: string;
   size: number;
   type: string;
@@ -16,10 +18,11 @@ interface UploadedFile {
   progress: number;
   cleanedRecords?: number;
   issues?: string[];
+  file?: File;
 }
 
 interface FileUploadZoneProps {
-  onFilesUploaded: (files: UploadedFile[]) => void;
+  onFilesUploaded: (files: ProcessedFile[]) => void;
 }
 
 const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFilesUploaded }) => {
@@ -37,34 +40,102 @@ const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFilesUploaded }) => {
     }
   }, []);
 
-  const simulateFileProcessing = (file: UploadedFile) => {
-    const updateProgress = (progress: number, status?: UploadedFile['status']) => {
-      setFiles(prev => prev.map(f => 
-        f.id === file.id 
-          ? { ...f, progress, status: status || f.status }
-          : f
-      ));
-    };
+  const processFile = async (uploadedFile: UploadedFile) => {
+    if (!uploadedFile.file) return;
 
-    // Simulate upload progress
-    updateProgress(20, 'uploading');
-    setTimeout(() => updateProgress(50, 'processing'), 500);
-    setTimeout(() => updateProgress(80, 'processing'), 1000);
-    setTimeout(() => {
-      const cleanedRecords = Math.floor(Math.random() * 1000) + 100;
-      const issues = Math.random() > 0.7 ? ['Duplicate entries found', 'Missing values detected'] : [];
-      
+    try {
+      // Update status to processing
       setFiles(prev => prev.map(f => 
-        f.id === file.id 
-          ? { ...f, progress: 100, status: 'completed', cleanedRecords, issues }
+        f.id === uploadedFile.id 
+          ? { ...f, status: 'processing', progress: 10 }
           : f
       ));
+
+      // Parse the file
+      const parsedData = await FileParser.parseFile(uploadedFile.file);
       
+      setFiles(prev => prev.map(f => 
+        f.id === uploadedFile.id 
+          ? { ...f, progress: 30 }
+          : f
+      ));
+
+      // Process with AI agents
+      const cleaningResults = await aiAgentSystem.processData(parsedData.rows, parsedData.headers);
+      
+      setFiles(prev => prev.map(f => 
+        f.id === uploadedFile.id 
+          ? { ...f, progress: 80 }
+          : f
+      ));
+
+      // Calculate statistics
+      const totalRecords = parsedData.rows.length;
+      const flaggedRecords = cleaningResults.flat().filter(r => r.issues.length > 0).length;
+      const cleanedRecords = totalRecords - flaggedRecords;
+      const accuracy = totalRecords > 0 ? (cleanedRecords / totalRecords) * 100 : 100;
+
+      // Create processed file record
+      const processedFile: ProcessedFile = {
+        id: uploadedFile.id,
+        name: uploadedFile.name,
+        type: parsedData.metadata.fileType,
+        status: 'completed',
+        progress: 100,
+        uploadTime: new Date(),
+        processTime: new Date(),
+        originalData: parsedData.rows,
+        cleanedData: cleaningResults.map(row => row.map(cell => cell.cleaned)),
+        headers: parsedData.headers,
+        cleaningResults,
+        issues: cleaningResults.flat().filter(r => r.issues.length > 0).map(r => r.issues).flat(),
+        stats: {
+          totalRecords,
+          cleanedRecords,
+          flaggedRecords,
+          accuracy: Math.round(accuracy * 10) / 10
+        }
+      };
+
+      // Save to data store
+      dataStore.addFile(processedFile);
+
+      // Update local state
+      setFiles(prev => prev.map(f => 
+        f.id === uploadedFile.id 
+          ? { 
+              ...f, 
+              status: 'completed', 
+              progress: 100, 
+              cleanedRecords: cleanedRecords,
+              issues: processedFile.issues 
+            }
+          : f
+      ));
+
+      // Notify parent component
+      onFilesUploaded(dataStore.getAllFiles());
+
       toast({
         title: "File processed successfully",
-        description: `${file.name} has been cleaned and is ready for review.`,
+        description: `${uploadedFile.name} has been cleaned and is ready for review.`,
       });
-    }, 1500);
+
+    } catch (error) {
+      console.error('File processing error:', error);
+      
+      setFiles(prev => prev.map(f => 
+        f.id === uploadedFile.id 
+          ? { ...f, status: 'error', issues: ['Processing failed'] }
+          : f
+      ));
+
+      toast({
+        title: "Processing failed",
+        description: `Failed to process ${uploadedFile.name}. Please try again.`,
+        variant: "destructive"
+      });
+    }
   };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -98,26 +169,38 @@ const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFilesUploaded }) => {
       });
     }
 
-    const newFiles: UploadedFile[] = validFiles.map((file, index) => ({
-      id: Date.now() + index,
+    const newFiles: UploadedFile[] = validFiles.map((file) => ({
+      id: Date.now().toString() + Math.random().toString(36).substr(2),
       name: file.name,
       size: file.size,
       type: file.type || 'unknown',
       status: 'uploading',
       progress: 0,
+      file
     }));
 
     setFiles(prev => [...prev, ...newFiles]);
-    onFilesUploaded([...files, ...newFiles]);
 
     // Start processing each file
     newFiles.forEach(file => {
-      setTimeout(() => simulateFileProcessing(file), Math.random() * 500);
+      setTimeout(() => processFile(file), Math.random() * 500);
     });
   };
 
-  const removeFile = (fileId: number) => {
+  const removeFile = (fileId: string) => {
     setFiles(prev => prev.filter(f => f.id !== fileId));
+  };
+
+  const retryFile = (fileId: string) => {
+    const file = files.find(f => f.id === fileId);
+    if (file) {
+      setFiles(prev => prev.map(f => 
+        f.id === fileId 
+          ? { ...f, status: 'uploading', progress: 0, issues: [] }
+          : f
+      ));
+      setTimeout(() => processFile(file), 500);
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -193,6 +276,15 @@ const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFilesUploaded }) => {
                         }>
                           {file.status}
                         </Badge>
+                        {file.status === 'error' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => retryFile(file.id)}
+                          >
+                            <Play className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -204,7 +296,7 @@ const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFilesUploaded }) => {
                     </div>
                     <div className="flex items-center space-x-4 text-xs text-gray-500">
                       <span>{formatFileSize(file.size)}</span>
-                      {file.status !== 'completed' && (
+                      {file.status !== 'completed' && file.status !== 'error' && (
                         <Progress value={file.progress} className="flex-1 max-w-32" />
                       )}
                       {file.cleanedRecords && (
@@ -217,7 +309,8 @@ const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFilesUploaded }) => {
                       <div className="mt-2 flex items-center space-x-2">
                         <AlertCircle className="h-4 w-4 text-yellow-500" />
                         <span className="text-xs text-yellow-600">
-                          {file.issues.join(', ')}
+                          {file.issues.slice(0, 2).join(', ')}
+                          {file.issues.length > 2 && ` +${file.issues.length - 2} more`}
                         </span>
                       </div>
                     )}
