@@ -1,6 +1,9 @@
 import { ParserAgent } from './ParserAgent';
 import { CleanerAgent } from './CleanerAgent';
 import { LabelerAgent } from './LabelerAgent';
+import { ReviewerAgent } from './ReviewerAgent';
+import { TrainerAgent } from './TrainerAgent';
+import { SupervisorAgent } from './SupervisorAgent';
 import { BaseAgent, AgentTask } from './BaseAgent';
 
 export class AgentManager {
@@ -15,11 +18,9 @@ export class AgentManager {
     this.agents.set('parser', new ParserAgent());
     this.agents.set('cleaner', new CleanerAgent());
     this.agents.set('labeler', new LabelerAgent());
-    
-    // Initialize other agents (simplified for now)
-    // this.agents.set('reviewer', new ReviewerAgent());
-    // this.agents.set('trainer', new TrainerAgent());
-    // this.agents.set('supervisor', new SupervisorAgent());
+    this.agents.set('reviewer', new ReviewerAgent());
+    this.agents.set('trainer', new TrainerAgent());
+    this.agents.set('supervisor', new SupervisorAgent());
   }
 
   async submitTask(agentName: string, taskType: string, data: any): Promise<string> {

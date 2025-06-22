@@ -10,7 +10,7 @@ import { dataStore } from "@/lib/dataStore";
 import { aiAgentSystem } from "@/lib/aiAgents";
 
 const Dashboard = () => {
-  const [showSettings, setShowSettings] = useState(false);
+
   const [stats, setStats] = useState({
     totalFiles: 0,
     cleanedRecords: 0,
@@ -119,13 +119,7 @@ const Dashboard = () => {
               <FolderOpen className="h-4 w-4" />
               <span>Projects</span>
             </Link>
-            <Link
-              to="/upload"
-              className="flex items-center space-x-2 py-4 px-2 border-b-2 border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300 text-sm font-medium"
-            >
-              <Upload className="h-4 w-4" />
-              <span>Upload Files</span>
-            </Link>
+
             <Link
               to="/results"
               className="flex items-center space-x-2 py-4 px-2 border-b-2 border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300 text-sm font-medium"

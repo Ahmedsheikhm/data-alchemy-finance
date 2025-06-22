@@ -229,14 +229,9 @@ const Projects = () => {
                       Created {new Date(project.createdAt).toLocaleDateString()}
                     </div>
                     <div className="flex space-x-2">
-                      <Link to={`/projects/${project.id}/files`} className="flex-1">
-                        <Button variant="outline" className="w-full">
-                          <FileText className="h-4 w-4 mr-2" />
-                          Manage Files
-                        </Button>
-                      </Link>
                       <Link to={`/projects/${project.id}/dashboard`} className="flex-1">
                         <Button className="w-full">
+                          <FileText className="h-4 w-4 mr-2" />
                           Open Project
                         </Button>
                       </Link>

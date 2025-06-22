@@ -30,8 +30,40 @@ const AgentMonitor = ({ agents: propAgents }: AgentMonitorProps) => {
     if (propAgents) {
       setAgents(propAgents);
     } else {
-      const agentStatuses = aiAgentSystem.getAgentStatuses();
-      setAgents(agentStatuses);
+      // Load agents from API
+      const loadAgents = async () => {
+        try {
+          const response = await fetch('/api/agents');
+          if (response.ok) {
+            const data = await response.json();
+            setAgents(data.agents.map((agent: any) => ({
+              name: agent.name,
+              status: agent.status,
+              task: agent.task,
+              progress: agent.progress,
+              performance: agent.metrics ? {
+                accuracy: agent.metrics.accuracy,
+                speed: agent.metrics.speed
+              } : undefined
+            })));
+          }
+        } catch (error) {
+          console.error('Failed to load agents:', error);
+          // Fallback to mock data
+          setAgents([
+            { name: "Parser Agent", status: "active", task: "Processing CSV headers", progress: 80 },
+            { name: "Cleaner Agent", status: "active", task: "Normalizing addresses", progress: 65 },
+            { name: "Labeler Agent", status: "idle", task: "Ready for next batch", progress: 0 },
+            { name: "Reviewer Agent", status: "active", task: "Flagging anomalies", progress: 90 },
+            { name: "Trainer Agent", status: "training", task: "Fine-tuning model", progress: 45 },
+            { name: "Supervisor Agent", status: "monitoring", task: "Overseeing workflow", progress: 100 }
+          ]);
+        }
+      };
+
+      loadAgents();
+      const interval = setInterval(loadAgents, 10000); // Refresh every 10 seconds
+      return () => clearInterval(interval);
     }
   }, [propAgents]);
   const getAgentIcon = (name: string) => {

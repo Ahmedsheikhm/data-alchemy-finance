@@ -225,12 +225,235 @@ const AgentConfig = () => {
     </div>
   );
 
+  const renderLabelerConfig = () => (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="confidenceThreshold">Confidence Threshold</Label>
+          <div className="mt-2">
+            <Slider
+              value={[config.confidenceThreshold || 0.85]}
+              onValueChange={(value) => updateConfig('confidenceThreshold', value[0])}
+              min={0.5}
+              max={1.0}
+              step={0.05}
+            />
+            <div className="text-sm text-muted-foreground mt-1">
+              {((config.confidenceThreshold || 0.85) * 100).toFixed(0)}%
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="enableAutoLabeling"
+            checked={config.enableAutoLabeling || false}
+            onCheckedChange={(checked) => updateConfig('enableAutoLabeling', checked)}
+          />
+          <Label htmlFor="enableAutoLabeling">Enable automatic labeling</Label>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="useContextualAnalysis"
+            checked={config.useContextualAnalysis || false}
+            onCheckedChange={(checked) => updateConfig('useContextualAnalysis', checked)}
+          />
+          <Label htmlFor="useContextualAnalysis">Use contextual analysis</Label>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="ruleBasedLabeling"
+            checked={config.ruleBasedLabeling || false}
+            onCheckedChange={(checked) => updateConfig('ruleBasedLabeling', checked)}
+          />
+          <Label htmlFor="ruleBasedLabeling">Enable rule-based labeling</Label>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderReviewerConfig = () => (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="anomalyThreshold">Anomaly Detection Threshold</Label>
+          <div className="mt-2">
+            <Slider
+              value={[config.anomalyThreshold || 0.85]}
+              onValueChange={(value) => updateConfig('anomalyThreshold', value[0])}
+              min={0.5}
+              max={1.0}
+              step={0.05}
+            />
+            <div className="text-sm text-muted-foreground mt-1">
+              {((config.anomalyThreshold || 0.85) * 100).toFixed(0)}%
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="autoApprove"
+            checked={config.autoApprove || false}
+            onCheckedChange={(checked) => updateConfig('autoApprove', checked)}
+          />
+          <Label htmlFor="autoApprove">Auto-approve high confidence records</Label>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="strictMode"
+            checked={config.strictMode || false}
+            onCheckedChange={(checked) => updateConfig('strictMode', checked)}
+          />
+          <Label htmlFor="strictMode">Enable strict validation mode</Label>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="flagDuplicates"
+            checked={config.flagDuplicates || false}
+            onCheckedChange={(checked) => updateConfig('flagDuplicates', checked)}
+          />
+          <Label htmlFor="flagDuplicates">Flag duplicate records</Label>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="validateBusinessRules"
+            checked={config.validateBusinessRules || false}
+            onCheckedChange={(checked) => updateConfig('validateBusinessRules', checked)}
+          />
+          <Label htmlFor="validateBusinessRules">Validate business rules</Label>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderTrainerConfig = () => (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="learningRate">Learning Rate</Label>
+          <Input
+            id="learningRate"
+            type="number"
+            value={config.learningRate || 0.001}
+            onChange={(e) => updateConfig('learningRate', parseFloat(e.target.value))}
+            step="0.0001"
+            min="0.0001"
+            max="0.1"
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="batchSize">Batch Size</Label>
+          <div className="mt-2">
+            <Slider
+              value={[config.batchSize || 32]}
+              onValueChange={(value) => updateConfig('batchSize', value[0])}
+              min={8}
+              max={128}
+              step={8}
+            />
+            <div className="text-sm text-muted-foreground mt-1">
+              {config.batchSize || 32} samples
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor="maxEpochs">Maximum Epochs</Label>
+          <Input
+            id="maxEpochs"
+            type="number"
+            value={config.maxEpochs || 100}
+            onChange={(e) => updateConfig('maxEpochs', parseInt(e.target.value))}
+            min="10"
+            max="1000"
+          />
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="enableIncrementalLearning"
+            checked={config.enableIncrementalLearning || false}
+            onCheckedChange={(checked) => updateConfig('enableIncrementalLearning', checked)}
+          />
+          <Label htmlFor="enableIncrementalLearning">Enable incremental learning</Label>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderSupervisorConfig = () => (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="maxConcurrentTasks">Max Concurrent Tasks</Label>
+          <div className="mt-2">
+            <Slider
+              value={[config.maxConcurrentTasks || 10]}
+              onValueChange={(value) => updateConfig('maxConcurrentTasks', value[0])}
+              min={1}
+              max={50}
+              step={1}
+            />
+            <div className="text-sm text-muted-foreground mt-1">
+              {config.maxConcurrentTasks || 10} tasks
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor="taskTimeoutMinutes">Task Timeout (minutes)</Label>
+          <Input
+            id="taskTimeoutMinutes"
+            type="number"
+            value={config.taskTimeoutMinutes || 30}
+            onChange={(e) => updateConfig('taskTimeoutMinutes', parseInt(e.target.value))}
+            min="5"
+            max="120"
+          />
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="autoRetryFailedTasks"
+            checked={config.autoRetryFailedTasks || false}
+            onCheckedChange={(checked) => updateConfig('autoRetryFailedTasks', checked)}
+          />
+          <Label htmlFor="autoRetryFailedTasks">Auto-retry failed tasks</Label>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="loadBalancingEnabled"
+            checked={config.loadBalancingEnabled || false}
+            onCheckedChange={(checked) => updateConfig('loadBalancingEnabled', checked)}
+          />
+          <Label htmlFor="loadBalancingEnabled">Enable load balancing</Label>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderConfigContent = () => {
     switch (agentName) {
       case 'parser':
         return renderParserConfig();
       case 'cleaner':
         return renderCleanerConfig();
+      case 'labeler':
+        return renderLabelerConfig();
+      case 'reviewer':
+        return renderReviewerConfig();
+      case 'trainer':
+        return renderTrainerConfig();
+      case 'supervisor':
+        return renderSupervisorConfig();
       default:
         return (
           <div className="text-center py-8">
